@@ -544,7 +544,7 @@ function init(){
   console.log('First nav item:', firstNav)
   switchPage('add-product', firstNav)
 
-  q('product-form').addEventListener('submit',e=>{
+  if(q('product-form')) q('product-form').addEventListener('submit',e=>{
     e.preventDefault()
     const code = q('p-code').value.trim()
     const name = q('p-name').value.trim()
@@ -656,9 +656,9 @@ function init(){
   })
   
   // Close modals
-  q('edit-product-modal').style.display='none'
-  q('print-qr-modal').style.display='none'
-  q('business-details-modal').style.display='none'
+  if(q('edit-product-modal')) q('edit-product-modal').style.display='none'
+  if(q('print-qr-modal')) q('print-qr-modal').style.display='none'
+  if(q('business-details-modal')) q('business-details-modal').style.display='none'
   
   document.querySelectorAll('[data-close]').forEach(btn => {
     btn.addEventListener('click',()=>{
@@ -667,14 +667,14 @@ function init(){
   })
   
   // Settings button for business details
-  q('settings-btn').addEventListener('click', showBusinessModal)
+  if(q('settings-btn')) q('settings-btn').addEventListener('click', showBusinessModal)
   
   // Save business details
-  q('biz-gst').addEventListener('input', (e) => {
-    q('gst-error').style.display = 'none'
+  if(q('biz-gst')) q('biz-gst').addEventListener('input', (e) => {
+    if(q('gst-error')) q('gst-error').style.display = 'none'
   })
   
-  q('save-business').addEventListener('click', saveBusinessModal)
+  if(q('save-business')) q('save-business').addEventListener('click', saveBusinessModal)
   
   // Global low-stock threshold initialization
   if(q('global-low-threshold')){
@@ -689,12 +689,12 @@ function init(){
   }
   
   // Cancel buttons
-  q('cancel-edit').addEventListener('click',()=>{
-    q('edit-product-modal').style.display = 'none'
+  if(q('cancel-edit')) q('cancel-edit').addEventListener('click',()=>{
+    if(q('edit-product-modal')) q('edit-product-modal').style.display = 'none'
   })
   
-  q('cancel-qr-print').addEventListener('click',()=>{
-    q('print-qr-modal').style.display = 'none'
+  if(q('cancel-qr-print')) q('cancel-qr-print').addEventListener('click',()=>{
+    if(q('print-qr-modal')) q('print-qr-modal').style.display = 'none'
   })
   
   // Edit product modal
@@ -741,7 +741,7 @@ function init(){
     }
   })
   
-  q('product-list').addEventListener('click',e=>{
+  if(q('product-list')) q('product-list').addEventListener('click',e=>{
     const li = e.target.closest('li')
     if(!li) return
     const addBtn = e.target.closest('button.add')
