@@ -136,43 +136,42 @@ function deleteProduct(code){
     saveProducts()
     renderProducts()
   }
+}
 
-  // Render low inventory list in dashboard
-  function renderLowInventory(){
-    const list = q('low-inventory-list')
-    if(!list) return
-    list.innerHTML = ''
-    const items = Object.entries(products).map(([code,p])=>({code, ...p}))
-    const lowItems = items.filter(it=>{
-      const low = (it.lowThreshold !== undefined) ? Number(it.lowThreshold) : Number(settings.globalLowThreshold || 0)
-      return (low > 0) && (Number(it.qty||0) <= low)
-    })
-    if(lowItems.length===0){
-      list.innerHTML = '<li style="color:#666;">No low inventory items</li>'
-      return
-    }
-    lowItems.forEach(it=>{
-      const li = document.createElement('li')
-      li.style.padding = '8px 6px'
-      li.style.border = '1px solid #eee'
-      li.style.borderRadius = '6px'
-      li.style.marginBottom = '8px'
-      li.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><div><strong>${it.name}</strong><div style="font-size:13px; color:#666">Code: ${it.code} • Qty: ${it.qty||0} • Threshold: ${it.lowThreshold !== undefined ? it.lowThreshold : settings.globalLowThreshold}</div></div><div><button class="btn-secondary" onclick="openAdjustQty('${it.code}')">Adjust</button></div></div>`
-      list.appendChild(li)
-    })
+// Render low inventory list in dashboard
+function renderLowInventory(){
+  const list = q('low-inventory-list')
+  if(!list) return
+  list.innerHTML = ''
+  const items = Object.entries(products).map(([code,p])=>({code, ...p}))
+  const lowItems = items.filter(it=>{
+    const low = (it.lowThreshold !== undefined) ? Number(it.lowThreshold) : Number(settings.globalLowThreshold || 0)
+    return (low > 0) && (Number(it.qty||0) <= low)
+  })
+  if(lowItems.length===0){
+    list.innerHTML = '<li style="color:#666;">No low inventory items</li>'
+    return
   }
+  lowItems.forEach(it=>{
+    const li = document.createElement('li')
+    li.style.padding = '8px 6px'
+    li.style.border = '1px solid #eee'
+    li.style.borderRadius = '6px'
+    li.style.marginBottom = '8px'
+    li.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><div><strong>${it.name}</strong><div style="font-size:13px; color:#666">Code: ${it.code} • Qty: ${it.qty||0} • Threshold: ${it.lowThreshold !== undefined ? it.lowThreshold : settings.globalLowThreshold}</div></div><div><button class="btn-secondary" onclick="openAdjustQty('${it.code}')">Adjust</button></div></div>`
+    list.appendChild(li)
+  })
+}
 
-  function openAdjustQty(code){
-    const p = products[code]
-    if(!p) return alert('Product not found')
-    const newQty = prompt(`Adjust quantity for ${p.name} (current: ${p.qty||0})`, p.qty||0)
-    if(newQty === null) return
-    const n = Number(newQty)
-    if(Number.isNaN(n) || n<0) return alert('Invalid quantity')
-    products[code].qty = n
-    saveProducts(); renderProducts(); renderLowInventory()
-  }
-  toggleMenu(document.querySelector('.menu-btn'))
+function openAdjustQty(code){
+  const p = products[code]
+  if(!p) return alert('Product not found')
+  const newQty = prompt(`Adjust quantity for ${p.name} (current: ${p.qty||0})`, p.qty||0)
+  if(newQty === null) return
+  const n = Number(newQty)
+  if(Number.isNaN(n) || n<0) return alert('Invalid quantity')
+  products[code].qty = n
+  saveProducts(); renderProducts(); renderLowInventory()
 }
 
 function reprintQR(code){
