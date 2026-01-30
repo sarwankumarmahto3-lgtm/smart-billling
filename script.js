@@ -65,6 +65,28 @@ function validateGST(gst) {
   return /^[A-Z0-9]{15}$/.test(gst.toUpperCase())
 }
 
+// Switch page and update sidebar
+function switchPage(tabName, navBtn){
+  // Hide all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+  // Show selected page
+  const page = document.getElementById(tabName)
+  if(page) page.classList.add('active')
+  // Update active nav items
+  document.querySelectorAll('.nav-item, .tab-btn').forEach(b => b.classList.remove('active'))
+  if(navBtn) navBtn.classList.add('active')
+  const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`)
+  if(tabBtn) tabBtn.classList.add('active')
+  // Update page description
+  const pageDescriptions = {
+    'add-product': 'Create and manage products with quantity tracking',
+    'scan-bill': 'Scan QR codes or manually add products to bills',
+    'dashboard': 'View sales analytics, inventory alerts, and export data'
+  }
+  const desc = q('current-page-desc')
+  if(desc) desc.textContent = pageDescriptions[tabName] || ''
+}
+
 function currencySymbol(code){
   return ({INR:'₹',USD:'$',EUR:'€',GBP:'£',JPY:'¥'}[code] || '')
 }
@@ -498,41 +520,21 @@ function init(){
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const tabName = e.target.dataset.tab
-      switchPage(tabName)
+      switchPage(tabName, e.target)
     })
   })
   
   // Sidebar navigation (new)
-  const pageDescriptions = {
-    'add-product': 'Create and manage products with quantity tracking',
-    'scan-bill': 'Scan QR codes or manually add products to bills',
-    'dashboard': 'View sales analytics, inventory alerts, and export data'
-  }
-  
   document.querySelectorAll('.nav-item[data-tab]').forEach(btn => {
     btn.addEventListener('click', (e) => {
+      e.preventDefault()
       const tabName = btn.dataset.tab
       switchPage(tabName, btn)
     })
   })
   
-  function switchPage(tabName, navBtn){
-    // Hide all pages
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
-    // Show selected page
-    document.getElementById(tabName).classList.add('active')
-    // Update active nav items
-    document.querySelectorAll('.nav-item, .tab-btn').forEach(b => b.classList.remove('active'))
-    if(navBtn) navBtn.classList.add('active')
-    const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`)
-    if(tabBtn) tabBtn.classList.add('active')
-    // Update page description
-    const desc = q('current-page-desc')
-    if(desc) desc.textContent = pageDescriptions[tabName] || ''
-  }
-  
   // Show first page by default
-  switchPage('add-product', document.querySelector('.nav-item[data-tab]'))
+  switchPage('add-product', document.querySelector('.nav-item[data-tab="add-product"]'))
 
   q('product-form').addEventListener('submit',e=>{
     e.preventDefault()
@@ -550,11 +552,11 @@ function init(){
     if(q('p-low')) q('p-low').value = ''
   })
   
-  q('start-scan').addEventListener('click',startScanner)
-  q('stop-scan').addEventListener('click',stopScanner)
+  if(q('start-scan')) q('start-scan').addEventListener('click',startScanner)
+  if(q('stop-scan')) q('stop-scan').addEventListener('click',stopScanner)
   
   // Generate QR button
-  q('gen-qr-btn').addEventListener('click',async (e)=>{
+  if(q('gen-qr-btn')) q('gen-qr-btn').addEventListener('click',async (e)=>{
     e.preventDefault()
     const code = q('p-code').value.trim() || makeCode()
     const name = q('p-name').value.trim()
@@ -581,7 +583,7 @@ function init(){
     }
   })
   
-  q('print-qr-multiple').addEventListener('click',()=>{
+  if(q('print-qr-multiple')) q('print-qr-multiple').addEventListener('click',()=>{
     const code = q('p-code').value.trim()
     if(!code){ return alert('Product code required') }
     const modal = q('print-qr-modal')
@@ -590,22 +592,22 @@ function init(){
     modal.style.display = 'flex'
   })
   
-  q('manual-add').addEventListener('click',()=>{
+  if(q('manual-add')) q('manual-add').addEventListener('click',()=>{
     const c = q('manual-code').value.trim(); if(!c) return
     addToBill(c); q('manual-code').value=''
   })
-  q('checkout').addEventListener('click',checkout)
-  q('clear-bill').addEventListener('click',clearBill)
+  if(q('checkout')) q('checkout').addEventListener('click',checkout)
+  if(q('clear-bill')) q('clear-bill').addEventListener('click',clearBill)
 
   // top actions
-  q('export-data').addEventListener('click',()=>{
+  if(q('export-data')) q('export-data').addEventListener('click',()=>{
     const data = {products,bills}
     const blob = new Blob([JSON.stringify(data, null, 2)],{type:'application/json'})
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = 'quick-billing-data.json'; a.click(); URL.revokeObjectURL(url)
   })
-  q('import-data').addEventListener('click',()=> q('import-file').click())
-  q('import-file').addEventListener('change',e=>{
+  if(q('import-data')) q('import-data').addEventListener('click',()=> q('import-file').click())
+  if(q('import-file')) q('import-file').addEventListener('change',e=>{
     const f = e.target.files && e.target.files[0]
     if(!f) return
     const reader = new FileReader();
@@ -621,7 +623,7 @@ function init(){
     reader.readAsText(f)
   })
 
-  q('export-csv').addEventListener('click',()=>{
+  if(q('export-csv')) q('export-csv').addEventListener('click',()=>{
     const rows = [['id','ts','total','items']]
     bills.forEach(b=>rows.push([b.id,b.ts,b.total,b.items.length]))
     const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n')
@@ -629,7 +631,7 @@ function init(){
     const a = document.createElement('a'); a.href = url; a.download = 'sales.csv'; a.click(); URL.revokeObjectURL(url)
   })
 
-  q('print-bill').addEventListener('click',()=>{
+  if(q('print-bill')) q('print-bill').addEventListener('click',()=>{
     const w = window.open('','_blank')
     const total = currentBill.reduce((s,i)=>s+i.price,0)
     const cur = currentBill.length ? currentBill[0].currency : 'INR'
@@ -747,11 +749,11 @@ function init(){
   })
   
   // Print bill modal handlers
-  q('print-bill-final').addEventListener('click', printBillFinal)
+  if(q('print-bill-final')) q('print-bill-final').addEventListener('click', printBillFinal)
   
   // Dashboard date filtering
   let filteredBills = []
-  q('apply-filter').addEventListener('click',()=>{
+  if(q('apply-filter')) q('apply-filter').addEventListener('click',()=>{
     const fromDate = q('filter-from-date').value
     const toDate = q('filter-to-date').value
     if(!fromDate || !toDate) return alert('Select both from and to dates')
@@ -767,7 +769,7 @@ function init(){
     renderDashboardFiltered(filteredBills)
   })
   
-  q('clear-filter').addEventListener('click',()=>{
+  if(q('clear-filter')) q('clear-filter').addEventListener('click',()=>{
     q('filter-from-date').value = ''
     q('filter-to-date').value = ''
     filteredBills = []
@@ -775,7 +777,7 @@ function init(){
   })
   
   // Export buttons
-  q('export-json-btn').addEventListener('click',()=>{
+  if(q('export-json-btn')) q('export-json-btn').addEventListener('click',()=>{
     const data = {products, bills: filteredBills.length > 0 ? filteredBills : bills}
     const blob = new Blob([JSON.stringify(data, null, 2)],{type:'application/json'})
     const url = URL.createObjectURL(blob)
@@ -786,7 +788,7 @@ function init(){
     URL.revokeObjectURL(url)
   })
   
-  q('export-csv-btn').addEventListener('click',()=>{
+  if(q('export-csv-btn')) q('export-csv-btn').addEventListener('click',()=>{
     const rows = [['Bill ID','Date','Customer Name','Total Items','Subtotal','GST','Total']]
     const billsToExport = filteredBills.length > 0 ? filteredBills : bills
     billsToExport.forEach(b=>{
@@ -811,7 +813,7 @@ function init(){
     URL.revokeObjectURL(url)
   })
   
-  q('print-bills-btn').addEventListener('click',()=>{
+  if(q('print-bills-btn')) q('print-bills-btn').addEventListener('click',()=>{
     const billsToExport = filteredBills.length > 0 ? filteredBills : bills
     if(billsToExport.length === 0) return alert('No bills to print')
     
@@ -855,8 +857,8 @@ function init(){
     setTimeout(()=>{ w.focus(); w.print() }, 500)
   })
   
-  q('import-json-btn').addEventListener('click',()=> q('import-json-file').click())
-  q('import-json-file').addEventListener('change',e=>{
+  if(q('import-json-btn')) q('import-json-btn').addEventListener('click',()=> q('import-json-file').click())
+  if(q('import-json-file')) q('import-json-file').addEventListener('change',e=>{
     const f = e.target.files && e.target.files[0]
     if(!f) return
     const reader = new FileReader()
