@@ -6,24 +6,48 @@
 		<title>Quick Billing</title>
 		<link rel="stylesheet" href="styles.css" />
 	</head>
-	<body>
-		<header>
-			<h1>💰 Quick Billing</h1>
-			<nav class="tabs">
-				<button class="tab-btn active" data-tab="add-product">➕ Add Product</button>
-				<button class="tab-btn" data-tab="scan-bill">📱 Scan & Bill</button>
-				<button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
-			</nav>
-			<div class="top-actions" style="display:none;">
-				<button id="export-data">⬇️ Export</button>
-				<button id="import-data">⬆️ Import</button>
-				<button id="export-csv">📊 CSV</button>
-				<button id="print-bill">🖨️ Print</button>
-				<input id="import-file" type="file" accept="application/json" style="display:none" />
+	<body class="sidebar-layout">
+		<aside class="sidebar">
+			<div class="sidebar-header">
+				<h2 style="margin:0; font-size:18px;">💰 Quick Billing</h2>
 			</div>
-		</header>
+			<nav class="sidebar-nav">
+				<button class="nav-item active" data-tab="add-product">
+					<span class="nav-icon">➕</span>
+					<span class="nav-label">Add Product</span>
+				</button>
+				<button class="nav-item" data-tab="scan-bill">
+					<span class="nav-icon">📱</span>
+					<span class="nav-label">Scan & Bill</span>
+				</button>
+				<button class="nav-item" data-tab="dashboard">
+					<span class="nav-icon">📊</span>
+					<span class="nav-label">Dashboard</span>
+				</button>
+				<hr style="margin: 15px 0; border: none; border-top: 1px solid #e1e8ed;">
+				<button id="settings-btn" class="nav-item" title="Business Settings">
+					<span class="nav-icon">⚙️</span>
+					<span class="nav-label">Settings</span>
+				</button>
+			</nav>
+		</aside>
 
-		<main class="pages">
+		<div class="main-container">
+			<header class="top-header">
+				<div class="header-content">
+					<h1>Quick Billing App</h1>
+					<p id="current-page-desc">Manage products, scan, and create bills</p>
+				</div>
+				<div class="header-actions" style="display:none;">
+					<button id="export-data">⬇️ Export</button>
+					<button id="import-data">⬆️ Import</button>
+					<button id="export-csv">📊 CSV</button>
+					<button id="print-bill">🖨️ Print</button>
+					<input id="import-file" type="file" accept="application/json" style="display:none" />
+				</div>
+			</header>
+
+			<main class="pages">
 			<!-- PAGE 1: Add Product -->
 			<section class="page" id="add-product">
 				<div class="card">
@@ -54,6 +78,14 @@
 								<option value="GBP">£ GBP (British Pound)</option>
 								<option value="JPY">¥ JPY (Japanese Yen)</option>
 							</select>
+						</div>
+						<div class="form-group">
+							<label>Quantity *</label>
+							<input id="p-qty" placeholder="0" type="number" step="1" min="0" value="0" required />
+						</div>
+						<div class="form-group">
+							<label>Low-stock Threshold (optional)</label>
+							<input id="p-low" placeholder="5" type="number" step="1" min="0" />
 						</div>
 						<div class="btn-group">
 							<button type="submit" class="btn-primary">Add Product</button>
@@ -161,6 +193,21 @@
 					
 					<h3>Recent Bills</h3>
 					<div id="recent-bills"></div>
+
+					<hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+					<h3>Inventory Alerts</h3>
+					<div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:16px;">
+						<div style="flex:1;">
+							<p style="margin:0 0 8px 0; color:#666;">Low-stock products will appear here. Set a global low-stock threshold:</p>
+							<div style="display:flex; gap:8px; align-items:center;">
+								<input id="global-low-threshold" type="number" min="0" value="5" style="width:80px; padding:6px;" />
+								<button id="save-global-threshold" class="btn-primary">Save</button>
+							</div>
+						</div>
+						<div style="flex:1;">
+							<ul id="low-inventory-list" style="list-style:none; padding:0; margin:0;"></ul>
+						</div>
+					</div>
 					
 					<hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
 					
@@ -232,6 +279,14 @@
 							<option value="JPY">¥ JPY</option>
 						</select>
 					</div>
+					<div class="form-group">
+						<label>Quantity</label>
+						<input id="edit-p-qty" type="number" step="1" min="0" />
+					</div>
+					<div class="form-group">
+						<label>Low-stock Threshold</label>
+						<input id="edit-p-low" type="number" step="1" min="0" />
+					</div>
 				</div>
 				<div class="modal-footer">
 					<button id="cancel-edit" class="btn-secondary" data-close>Cancel</button>
@@ -257,9 +312,44 @@
 			</div>
 		</div>
 
-<!-- OpenCV.js for QR/barcode detection (client-side WASM) -->
-	<script async src="https://docs.opencv.org/4.5.0/opencv.js"></script>
-	<!-- jsQR fallback for browsers without BarcodeDetector -->
+		<!-- Modal for business details setup -->
+		<div id="business-details-modal" class="modal" style="display: none;" role="dialog">
+			<div class="modal-content" style="max-width: 500px;">
+				<div class="modal-header">
+					<h2>Business Details</h2>
+					<button class="modal-close" data-close>&times;</button>
+				</div>
+				<div class="modal-body">
+					<form id="business-form">
+						<div class="form-group">
+							<label>Business Name *</label>
+							<input id="biz-name" placeholder="Enter business name" required />
+						</div>
+						<div class="form-group">
+							<label>Address *</label>
+							<textarea id="biz-address" placeholder="Enter full address" required style="resize: vertical; min-height: 80px;"></textarea>
+						</div>
+						<div class="form-group">
+							<label>Contact Number *</label>
+							<input id="biz-phone" placeholder="Enter contact number" type="tel" required />
+						</div>
+						<div class="form-group">
+							<label>GST Number (Optional)</label>
+							<input id="biz-gst" placeholder="e.g., 27AABCT1234A1Z5" maxlength="15" />
+							<small id="gst-error" style="color: #f44336; display: none;">Invalid GST format. Must be 15 characters (alphanumeric).</small>
+						</div>
+					</form>
+				</div>
+				<div class="modal-footer">
+					<button id="save-business" class="btn-primary">Save Details</button>
+				</div>
+			</div>
+			</main>
+		</div>
+
+		<!-- OpenCV.js for QR/barcode detection (client-side WASM) -->
+		<script async src="https://docs.opencv.org/4.5.0/opencv.js"></script>
+		<!-- jsQR fallback for browsers without BarcodeDetector -->
 		<script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
 		<!-- ZXing for robust barcode/QR detection -->
 		<script src="https://cdn.jsdelivr.net/npm/@zxing/library@latest"></script>
@@ -268,4 +358,3 @@
 		<script src="script.js"></script>
 	</body>
 </html>
-

@@ -1,10 +1,14 @@
 // Quick Billing - minimal single-file logic
 const productKey = 'qb_products'
 const billsKey = 'qb_bills'
+const businessKey = 'qb_business'
+const settingsKey = 'qb_settings'
 
 let products = {}
 let currentBill = []
 let bills = []
+let businessDetails = {}
+let settings = { globalLowThreshold: 5 }
 
 const q = id => document.getElementById(id)
 
@@ -46,10 +50,20 @@ function generateQRDataURL(productData){
 function loadStorage(){
   products = JSON.parse(localStorage.getItem(productKey) || '{}')
   bills = JSON.parse(localStorage.getItem(billsKey) || '[]')
+  businessDetails = JSON.parse(localStorage.getItem(businessKey) || '{}')
+  settings = JSON.parse(localStorage.getItem(settingsKey) || JSON.stringify(settings))
 }
 
 function saveProducts(){ localStorage.setItem(productKey, JSON.stringify(products)) }
 function saveBills(){ localStorage.setItem(billsKey, JSON.stringify(bills)) }
+function saveBusinessDetails(){ localStorage.setItem(businessKey, JSON.stringify(businessDetails)) }
+function saveSettings(){ localStorage.setItem(settingsKey, JSON.stringify(settings)) }
+
+// Validate GST format (15 alphanumeric characters for Indian GST)
+function validateGST(gst) {
+  if (!gst) return true // Optional field
+  return /^[A-Z0-9]{15}$/.test(gst.toUpperCase())
+}
 
 function currencySymbol(code){
   return ({INR:'₹',USD:'$',EUR:'€',GBP:'£',JPY:'¥'}[code] || '')
@@ -62,9 +76,13 @@ function renderProducts(){
     const li = document.createElement('li')
     const sym = currencySymbol(p.currency)
     const gst = p.gst || 18
-    li.innerHTML = `<div><strong>${p.name}</strong><br><small>${code} • ${sym}${p.price.toFixed(2)} (GST: ${gst}%)</small></div><div style="display:flex; gap:8px; align-items:center;"><div class="product-menu"><button class="menu-btn" onclick="toggleMenu(this)">⋮</button><div class="dropdown-menu"><button class="dropdown-item" onclick="editProduct('${code}')">✏️ Edit</button><button class="dropdown-item" onclick="reprintQR('${code}')">🖨️ Reprint QR</button><button class="dropdown-item danger" onclick="deleteProduct('${code}')">🗑️ Delete</button></div></div></div>`
+    const qty = Number(p.qty || 0)
+    const low = (p.lowThreshold !== undefined) ? Number(p.lowThreshold) : (settings.globalLowThreshold || 0)
+    const lowBadge = (low > 0 && qty <= low) ? `<span class=\"low-badge\">Low (${qty})</span>` : `<span class=\"qty\">Qty: ${qty}</span>`
+    li.innerHTML = `<div><strong>${p.name}</strong><br><small>${code} • ${sym}${p.price.toFixed(2)} (GST: ${gst}%) ${lowBadge}</small></div><div style=\"display:flex; gap:8px; align-items:center;\"><div class=\"product-menu\"><button class=\"menu-btn\" onclick=\"toggleMenu(this)\">⋮</button><div class=\"dropdown-menu\"><button class=\"dropdown-item\" onclick=\"editProduct('${code}')\">✏️ Edit</button><button class=\"dropdown-item\" onclick=\"reprintQR('${code}')\">🖨️ Reprint QR</button><button class=\"dropdown-item danger\" onclick=\"deleteProduct('${code}')\">🗑️ Delete</button></div></div></div>`
     ul.appendChild(li)
   })
+  renderLowInventory()
 }
 
 function toggleMenu(btn){
@@ -84,6 +102,8 @@ function editProduct(code){
   q('edit-p-price').value = p.price
   q('edit-p-gst').value = p.gst || 18
   q('edit-p-currency').value = p.currency
+  q('edit-p-qty').value = p.qty || 0
+  q('edit-p-low').value = (p.lowThreshold !== undefined) ? p.lowThreshold : ''
   modal.style.display = 'flex'
   toggleMenu(document.querySelector('.menu-btn'))
 }
@@ -93,6 +113,42 @@ function deleteProduct(code){
     delete products[code]
     saveProducts()
     renderProducts()
+  }
+
+  // Render low inventory list in dashboard
+  function renderLowInventory(){
+    const list = q('low-inventory-list')
+    if(!list) return
+    list.innerHTML = ''
+    const items = Object.entries(products).map(([code,p])=>({code, ...p}))
+    const lowItems = items.filter(it=>{
+      const low = (it.lowThreshold !== undefined) ? Number(it.lowThreshold) : Number(settings.globalLowThreshold || 0)
+      return (low > 0) && (Number(it.qty||0) <= low)
+    })
+    if(lowItems.length===0){
+      list.innerHTML = '<li style="color:#666;">No low inventory items</li>'
+      return
+    }
+    lowItems.forEach(it=>{
+      const li = document.createElement('li')
+      li.style.padding = '8px 6px'
+      li.style.border = '1px solid #eee'
+      li.style.borderRadius = '6px'
+      li.style.marginBottom = '8px'
+      li.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><div><strong>${it.name}</strong><div style="font-size:13px; color:#666">Code: ${it.code} • Qty: ${it.qty||0} • Threshold: ${it.lowThreshold !== undefined ? it.lowThreshold : settings.globalLowThreshold}</div></div><div><button class="btn-secondary" onclick="openAdjustQty('${it.code}')">Adjust</button></div></div>`
+      list.appendChild(li)
+    })
+  }
+
+  function openAdjustQty(code){
+    const p = products[code]
+    if(!p) return alert('Product not found')
+    const newQty = prompt(`Adjust quantity for ${p.name} (current: ${p.qty||0})`, p.qty||0)
+    if(newQty === null) return
+    const n = Number(newQty)
+    if(Number.isNaN(n) || n<0) return alert('Invalid quantity')
+    products[code].qty = n
+    saveProducts(); renderProducts(); renderLowInventory()
   }
   toggleMenu(document.querySelector('.menu-btn'))
 }
@@ -154,10 +210,11 @@ function makeCode(){
   return `SKU-${Date.now().toString().slice(-5)}-${rnd}`
 }
 
-function addProduct(code,name,price,currency='INR',gst=18){
+function addProduct(code,name,price,currency='INR',gst=18, qty=0, lowThreshold){
   let k = code && code.trim()
   if(!k) k = makeCode()
-  products[k] = {name,price:Number(price),currency,gst:Number(gst)}
+  products[k] = {name,price:Number(price),currency,gst:Number(gst), qty: Number(qty||0)}
+  if(lowThreshold !== undefined) products[k].lowThreshold = Number(lowThreshold)
   saveProducts(); renderProducts()
 }
 
@@ -194,6 +251,14 @@ function checkout(){
   }
   bills.unshift(bill)
   saveBills()
+  // Decrement inventory for sold items
+  bill.items.forEach(item => {
+    const code = item.code
+    if(products[code] && typeof products[code].qty === 'number'){
+      products[code].qty = Math.max(0, Number(products[code].qty) - 1)
+    }
+  })
+  saveProducts()
   
   // Show print bill modal
   showPrintBillModal(bill)
@@ -413,23 +478,61 @@ function handleDetected(code){
 // --- Wire up UI ---
 function init(){
   loadStorage(); renderProducts(); renderDashboard(); renderBill()
+  
+  // Show business details modal if not yet configured
+  if(!businessDetails.name) {
+    setTimeout(() => showBusinessModal(), 500)
+  }
+  
+  // Populate global threshold input from settings
+  if(q('global-low-threshold')) q('global-low-threshold').value = settings.globalLowThreshold || 5
+  if(q('save-global-threshold')) q('save-global-threshold').addEventListener('click', ()=>{
+    const val = Number(q('global-low-threshold').value || 0)
+    settings.globalLowThreshold = val
+    saveSettings()
+    renderProducts()
+    alert('Global low-stock threshold saved')
+  })
 
-  // Tab navigation
+  // Tab navigation - legacy (hidden)
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const tabName = e.target.dataset.tab
-      // Hide all pages
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
-      // Show selected page
-      document.getElementById(tabName).classList.add('active')
-      // Update active button
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
-      e.target.classList.add('active')
+      switchPage(tabName)
     })
   })
   
+  // Sidebar navigation (new)
+  const pageDescriptions = {
+    'add-product': 'Create and manage products with quantity tracking',
+    'scan-bill': 'Scan QR codes or manually add products to bills',
+    'dashboard': 'View sales analytics, inventory alerts, and export data'
+  }
+  
+  document.querySelectorAll('.nav-item[data-tab]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tabName = btn.dataset.tab
+      switchPage(tabName, btn)
+    })
+  })
+  
+  function switchPage(tabName, navBtn){
+    // Hide all pages
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'))
+    // Show selected page
+    document.getElementById(tabName).classList.add('active')
+    // Update active nav items
+    document.querySelectorAll('.nav-item, .tab-btn').forEach(b => b.classList.remove('active'))
+    if(navBtn) navBtn.classList.add('active')
+    const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`)
+    if(tabBtn) tabBtn.classList.add('active')
+    // Update page description
+    const desc = q('current-page-desc')
+    if(desc) desc.textContent = pageDescriptions[tabName] || ''
+  }
+  
   // Show first page by default
-  document.getElementById('add-product').classList.add('active')
+  switchPage('add-product', document.querySelector('.nav-item[data-tab]'))
 
   q('product-form').addEventListener('submit',e=>{
     e.preventDefault()
@@ -438,9 +541,13 @@ function init(){
     const price = Number(q('p-price').value || 0)
     const gst = Number(q('p-gst').value || 18)
     const currency = q('p-currency')? q('p-currency').value : 'INR'
+    const qty = Number(q('p-qty')?.value || 0)
+    const low = q('p-low')?.value ? Number(q('p-low').value) : undefined
     if(!name) return alert('Name required')
-    addProduct(code,name,price,currency,gst)
+    addProduct(code,name,price,currency,gst,qty,low)
     q('p-code').value=''; q('p-name').value=''; q('p-price').value=''; q('p-gst').value='18'
+    if(q('p-qty')) q('p-qty').value = '0'
+    if(q('p-low')) q('p-low').value = ''
   })
   
   q('start-scan').addEventListener('click',startScanner)
@@ -541,12 +648,35 @@ function init(){
   // Close modals
   q('edit-product-modal').style.display='none'
   q('print-qr-modal').style.display='none'
+  q('business-details-modal').style.display='none'
   
   document.querySelectorAll('[data-close]').forEach(btn => {
     btn.addEventListener('click',()=>{
       btn.closest('[role="dialog"]').style.display = 'none'
     })
   })
+  
+  // Settings button for business details
+  q('settings-btn').addEventListener('click', showBusinessModal)
+  
+  // Save business details
+  q('biz-gst').addEventListener('input', (e) => {
+    q('gst-error').style.display = 'none'
+  })
+  
+  q('save-business').addEventListener('click', saveBusinessModal)
+  
+  // Global low-stock threshold initialization
+  if(q('global-low-threshold')){
+    q('global-low-threshold').value = settings.globalLowThreshold || 0
+    q('save-global-threshold').addEventListener('click', ()=>{
+      const v = Number(q('global-low-threshold').value || 0)
+      settings.globalLowThreshold = Number(v)
+      saveSettings()
+      renderProducts()
+      alert('Global low-stock threshold saved')
+    })
+  }
   
   // Cancel buttons
   q('cancel-edit').addEventListener('click',()=>{
@@ -564,9 +694,13 @@ function init(){
     const price = Number(q('edit-p-price').value || 0)
     const gst = Number(q('edit-p-gst').value || 18)
     const currency = q('edit-p-currency').value
+    const qty = Number(q('edit-p-qty')?.value || 0)
+    const low = q('edit-p-low')?.value ? Number(q('edit-p-low').value) : undefined
     if(!name) return alert('Name required')
     if(products[code]){
-      products[code] = {name, price, gst, currency}
+      products[code] = Object.assign({}, products[code], {name, price, gst, currency, qty: qty})
+      if(low !== undefined) products[code].lowThreshold = low
+      else delete products[code].lowThreshold
       saveProducts()
       renderProducts()
       q('edit-product-modal').style.display = 'none'
@@ -827,9 +961,20 @@ function showPrintBillModal(bill){
         ${bill.customerInfo.email ? `<p style="margin: 5px 0;"><strong>Email:</strong> ${bill.customerInfo.email}</p>` : ''}
       </div>`
     : ''
+
+  const businessHTML = businessDetails.name
+    ? `<div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #4caf50;">
+        <h4 style="margin-top: 0; color: #2e7d32;">Business Details</h4>
+        <p style="margin: 5px 0; font-weight: bold; font-size: 16px;">${businessDetails.name}</p>
+        ${businessDetails.address ? `<p style="margin: 5px 0; font-size: 13px;">${businessDetails.address}</p>` : ''}
+        ${businessDetails.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${businessDetails.phone}</p>` : ''}
+        ${businessDetails.gst ? `<p style="margin: 5px 0;"><strong>GST:</strong> ${businessDetails.gst}</p>` : ''}
+      </div>`
+    : ''
   
   const billHTML = `
     <div style="font-family: Arial, sans-serif;">
+      ${businessHTML}
       ${customerHTML}
       <h3 style="text-align: center; margin-bottom: 20px;">Bill Receipt</h3>
       <p style="text-align: center; color: #999; font-size: 12px;">Bill ID: ${bill.id} | Date: ${new Date(bill.ts).toLocaleString()}</p>
@@ -906,6 +1051,16 @@ function printBillFinal(){
         ${bill.customerInfo.email ? `<p style="margin: 5px 0;"><strong>Email:</strong> ${bill.customerInfo.email}</p>` : ''}
       </div>`
     : ''
+
+  const businessHTML = businessDetails.name
+    ? `<div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #4caf50;">
+        <h4 style="margin-top: 0; color: #2e7d32;">Business Details</h4>
+        <p style="margin: 5px 0; font-weight: bold; font-size: 16px;">${businessDetails.name}</p>
+        ${businessDetails.address ? `<p style="margin: 5px 0; font-size: 13px;">${businessDetails.address}</p>` : ''}
+        ${businessDetails.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${businessDetails.phone}</p>` : ''}
+        ${businessDetails.gst ? `<p style="margin: 5px 0;"><strong>GST:</strong> ${businessDetails.gst}</p>` : ''}
+      </div>`
+    : ''
   
   const w = window.open('','_blank')
   w.document.write(`
@@ -927,6 +1082,7 @@ function printBillFinal(){
       </style>
     </head>
     <body>
+      ${businessHTML}
       ${customerHTML}
       <h3>Bill Receipt</h3>
       <p class="meta">Bill ID: ${bill.id} | Date: ${new Date(bill.ts).toLocaleString()}</p>
@@ -963,6 +1119,60 @@ function printBillFinal(){
   `)
   w.document.close()
   setTimeout(()=>{ w.focus(); w.print() }, 500)
+}
+
+// Business details setup & validation
+function showBusinessModal(){
+  const modal = q('business-details-modal')
+  if(businessDetails.name) {
+    q('biz-name').value = businessDetails.name || ''
+    q('biz-address').value = businessDetails.address || ''
+    q('biz-phone').value = businessDetails.phone || ''
+    q('biz-gst').value = businessDetails.gst || ''
+  }
+  modal.style.display = 'flex'
+}
+
+function saveBusinessModal(){
+  const name = q('biz-name').value.trim()
+  const address = q('biz-address').value.trim()
+  const phone = q('biz-phone').value.trim()
+  const gst = q('biz-gst').value.trim().toUpperCase()
+  
+  if(!name || !address || !phone) {
+    alert('Please fill in all required fields (Business Name, Address, Contact Number)')
+    return
+  }
+  
+  if(gst && !validateGST(gst)) {
+    q('gst-error').style.display = 'block'
+    return
+  }
+  
+  q('gst-error').style.display = 'none'
+  businessDetails = { name, address, phone, gst: gst || '' }
+  saveBusinessDetails()
+  
+  const modal = q('business-details-modal')
+  modal.style.display = 'none'
+  alert('Business details saved!')
+}
+
+function updateBillWithBusinessDetails(billHTML) {
+  if(!businessDetails.name) return billHTML
+  
+  const bizHTML = `
+    <div style="background: #f5f7fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #667eea;">
+      <h4 style="margin-top: 0; color: #667eea;">Business Details</h4>
+      <p style="margin: 5px 0;"><strong>${businessDetails.name}</strong></p>
+      ${businessDetails.address ? `<p style="margin: 5px 0; font-size: 13px;">${businessDetails.address}</p>` : ''}
+      ${businessDetails.phone ? `<p style="margin: 5px 0;"><strong>Phone:</strong> ${businessDetails.phone}</p>` : ''}
+      ${businessDetails.gst ? `<p style="margin: 5px 0;"><strong>GST:</strong> ${businessDetails.gst}</p>` : ''}
+    </div>
+  `
+  
+  // Insert business details after opening <body>
+  return billHTML.replace('<body>', `<body>${bizHTML}`)
 }
 
 document.addEventListener('DOMContentLoaded',init)
