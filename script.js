@@ -499,6 +499,7 @@ function handleDetected(code){
 
 // --- Wire up UI ---
 function init(){
+  console.log('🔄 Initializing app...')
   loadStorage(); renderProducts(); renderDashboard(); renderBill()
   
   // Show business details modal if not yet configured
@@ -520,21 +521,28 @@ function init(){
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const tabName = e.target.dataset.tab
+      console.log('Tab clicked:', tabName)
       switchPage(tabName, e.target)
     })
   })
   
   // Sidebar navigation (new)
-  document.querySelectorAll('.nav-item[data-tab]').forEach(btn => {
+  const navItems = document.querySelectorAll('.nav-item[data-tab]')
+  console.log('Found nav items:', navItems.length)
+  navItems.forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault()
+      e.stopPropagation()
       const tabName = btn.dataset.tab
+      console.log('Nav item clicked:', tabName)
       switchPage(tabName, btn)
     })
   })
   
   // Show first page by default
-  switchPage('add-product', document.querySelector('.nav-item[data-tab="add-product"]'))
+  const firstNav = document.querySelector('.nav-item[data-tab="add-product"]')
+  console.log('First nav item:', firstNav)
+  switchPage('add-product', firstNav)
 
   q('product-form').addEventListener('submit',e=>{
     e.preventDefault()
