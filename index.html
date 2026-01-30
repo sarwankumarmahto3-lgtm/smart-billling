@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+		<title>Quick Billing</title>
+		<link rel="stylesheet" href="styles.css" />
+	</head>
+	<body>
+		<header>
+			<h1>💰 Quick Billing</h1>
+			<nav class="tabs">
+				<button class="tab-btn active" data-tab="add-product">➕ Add Product</button>
+				<button class="tab-btn" data-tab="scan-bill">📱 Scan & Bill</button>
+				<button class="tab-btn" data-tab="dashboard">📊 Dashboard</button>
+			</nav>
+			<div class="top-actions" style="display:none;">
+				<button id="export-data">⬇️ Export</button>
+				<button id="import-data">⬆️ Import</button>
+				<button id="export-csv">📊 CSV</button>
+				<button id="print-bill">🖨️ Print</button>
+				<input id="import-file" type="file" accept="application/json" style="display:none" />
+			</div>
+		</header>
+
+		<main class="pages">
+			<!-- PAGE 1: Add Product -->
+			<section class="page" id="add-product">
+				<div class="card">
+					<h2>Add New Product</h2>
+					<form id="product-form">
+						<div class="form-group">
+							<label>Product Code</label>
+							<input id="p-code" placeholder="Leave empty for auto-generated code" />
+						</div>
+						<div class="form-group">
+							<label>Product Name *</label>
+							<input id="p-name" placeholder="e.g., Laptop, Phone, Headphones" required />
+						</div>
+						<div class="form-group">
+							<label>Price (GST Included) *</label>
+							<input id="p-price" placeholder="0.00" type="number" step="0.01" required />
+						</div>
+						<div class="form-group">
+							<label>GST Percentage (%)</label>
+							<input id="p-gst" placeholder="18" type="number" step="0.01" value="18" />
+						</div>
+						<div class="form-group">
+							<label>Currency</label>
+							<select id="p-currency">
+								<option value="INR">₹ INR (Indian Rupee)</option>
+								<option value="USD">$ USD (US Dollar)</option>
+								<option value="EUR">€ EUR (Euro)</option>
+								<option value="GBP">£ GBP (British Pound)</option>
+								<option value="JPY">¥ JPY (Japanese Yen)</option>
+							</select>
+						</div>
+						<div class="btn-group">
+							<button type="submit" class="btn-primary">Add Product</button>
+							<button type="button" id="gen-qr-btn" class="btn-secondary">Generate QR Code</button>
+						</div>
+					</form>
+
+					<div id="qr-display" class="qr-box" style="display: none;">
+						<h3>Generated QR Code</h3>
+						<img id="qr-img" src="" alt="QR Code" />
+						<p id="qr-data-label"></p>
+						<p><small>📱 Point your phone camera at this QR to scan during billing</small></p>
+						<button id="print-qr-multiple" class="btn-primary" style="margin-top: 15px;">🖨️ Print Multiple QRs on A4</button>
+					</div>
+
+					<div class="products-section">
+						<h3>All Products</h3>
+						<ul id="product-list"></ul>
+					</div>
+				</div>
+			</section>
+
+			<!-- PAGE 2: Scan & Bill -->
+			<section class="page" id="scan-bill">
+				<div class="grid-2col">
+					<div class="card">
+						<h2>Customer Details (Optional)</h2>
+						<form id="customer-form">
+							<div class="form-group">
+								<label>Customer Name</label>
+								<input id="c-name" placeholder="Enter customer name" />
+							</div>
+							<div class="form-group">
+								<label>Phone Number</label>
+								<input id="c-phone" placeholder="Enter phone number" type="tel" />
+							</div>
+							<div class="form-group">
+								<label>Email</label>
+								<input id="c-email" placeholder="Enter email" type="email" />
+							</div>
+						</form>
+						<hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;">
+						<h2 style="margin-top: 0;">Scanner</h2>
+						<div id="scanner-wrap">
+							<video id="video" playsinline autoplay></video>
+							<div id="scanner-controls">
+								<button id="start-scan" class="btn-primary">Start Scanner</button>
+								<button id="stop-scan" class="btn-secondary" disabled>Stop Scanner</button>
+							</div>
+						</div>
+						<small id="scanner-support"></small>
+						<div class="manual-entry">
+							<h3>Manual Entry</h3>
+							<input id="manual-code" placeholder="Enter product code" />
+							<button id="manual-add" class="btn-primary">Add to Bill</button>
+						</div>
+					</div>
+
+					<div class="card">
+						<h2>Current Bill</h2>
+						<ul id="bill-list"></ul>
+						<div id="gst-breakdown"></div>
+						<div class="bill-footer">
+							<div class="total">Total: <strong id="bill-total">0.00</strong></div>
+							<div class="bill-actions">
+								<button id="checkout" class="btn-success">✓ Checkout</button>
+								<button id="clear-bill" class="btn-danger">✕ Clear</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<!-- PAGE 3: Dashboard -->
+			<section class="page" id="dashboard">
+				<div class="card">
+					<h2>Dashboard & Analytics</h2>
+					
+					<div class="filter-section" style="background: #f5f7fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+						<h3 style="margin-top: 0;">Filter by Date Range</h3>
+						<div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-bottom: 15px;">
+							<div class="form-group" style="margin: 0;">
+								<label style="font-size: 12px;">From Date</label>
+								<input id="filter-from-date" type="date" />
+							</div>
+							<div class="form-group" style="margin: 0;">
+								<label style="font-size: 12px;">To Date</label>
+								<input id="filter-to-date" type="date" />
+							</div>
+							<button id="apply-filter" class="btn-primary" style="align-self: flex-end;">Apply Filter</button>
+						</div>
+						<button id="clear-filter" class="btn-secondary">Clear Filter</button>
+					</div>
+					
+					<div id="dashboard-stats">
+						<div class="stat-box">
+							<div class="stat-label">Total Bills</div>
+							<div class="stat-value" id="dash-count">0</div>
+						</div>
+						<div class="stat-box">
+							<div class="stat-label">Total Sales</div>
+							<div class="stat-value" id="dash-sales">₹0.00</div>
+						</div>
+					</div>
+					
+					<h3>Recent Bills</h3>
+					<div id="recent-bills"></div>
+					
+					<hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;">
+					
+					<h3>Export Data</h3>
+					<div class="export-section" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+						<button id="export-json-btn" class="btn-primary">📥 Export JSON</button>
+						<button id="export-csv-btn" class="btn-primary">📊 Export CSV</button>
+						<button id="print-bills-btn" class="btn-primary">🖨️ Print Bills</button>
+						<button id="import-json-btn" class="btn-secondary">⬆️ Import JSON</button>
+					</div>
+					<input id="import-json-file" type="file" accept="application/json" style="display:none" />
+				</div>
+			</section>
+		</main>
+
+		<!-- Modal for printing multiple QRs -->
+		<div id="print-qr-modal" class="modal" style="display: none;" role="dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2>Print QR Codes on A4 Paper</h2>
+					<button class="modal-close" data-close>&times;</button>
+				</div>
+				<div class="modal-body">
+					<input id="qr-product-code" type="hidden" />
+					<div class="form-group">
+						<label>How many QR codes to print? (Max 12 per page)</label>
+						<input id="qr-qty" type="number" min="1" max="12" value="6" placeholder="Enter quantity (1-12)" />
+					</div>
+					<p style="color: #999; font-size: 13px;">A4 size recommendation: Up to 12 QRs per page in 3x4 grid</p>
+				</div>
+				<div class="modal-footer">
+					<button id="cancel-qr-print" class="btn-secondary" data-close>Cancel</button>
+					<button id="confirm-qr-print" class="btn-primary">Print on A4</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Modal for editing product -->
+		<div id="edit-product-modal" class="modal" style="display: none;" role="dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h2>Edit Product</h2>
+					<button class="modal-close" data-close>&times;</button>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label>Product Code</label>
+						<input id="edit-p-code" placeholder="Code" disabled />
+					</div>
+					<div class="form-group">
+						<label>Product Name</label>
+						<input id="edit-p-name" placeholder="Name" />
+					</div>
+					<div class="form-group">
+						<label>Price (GST Included)</label>
+						<input id="edit-p-price" type="number" step="0.01" />
+					</div>
+					<div class="form-group">
+						<label>GST Percentage (%)</label>
+						<input id="edit-p-gst" type="number" step="0.01" />
+					</div>
+					<div class="form-group">
+						<label>Currency</label>
+						<select id="edit-p-currency">
+							<option value="INR">₹ INR</option>
+							<option value="USD">$ USD</option>
+							<option value="EUR">€ EUR</option>
+							<option value="GBP">£ GBP</option>
+							<option value="JPY">¥ JPY</option>
+						</select>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button id="cancel-edit" class="btn-secondary" data-close>Cancel</button>
+					<button id="confirm-edit" class="btn-primary">Save Changes</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- Modal for printing bill after checkout -->
+		<div id="print-bill-modal" class="modal" style="display: none;" role="dialog">
+			<div class="modal-content" style="max-width: 600px;">
+				<div class="modal-header">
+					<h2>Bill Summary</h2>
+					<button class="modal-close" data-close>&times;</button>
+				</div>
+				<div class="modal-body" id="bill-preview-content" style="max-height: 500px; overflow-y: auto;">
+					<!-- Bill preview will be populated here -->
+				</div>
+				<div class="modal-footer">
+					<button id="close-bill-preview" class="btn-secondary" data-close>Close</button>
+					<button id="print-bill-final" class="btn-primary">🖨️ Print Bill</button>
+				</div>
+			</div>
+		</div>
+
+<!-- OpenCV.js for QR/barcode detection (client-side WASM) -->
+	<script async src="https://docs.opencv.org/4.5.0/opencv.js"></script>
+	<!-- jsQR fallback for browsers without BarcodeDetector -->
+		<script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+		<!-- ZXing for robust barcode/QR detection -->
+		<script src="https://cdn.jsdelivr.net/npm/@zxing/library@latest"></script>
+		<!-- QR generator (client-side) - QRious -->
+		<script src="https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js"></script>
+		<script src="script.js"></script>
+	</body>
+</html>
+
