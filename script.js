@@ -757,6 +757,7 @@ function init(){
   
   // Print bill modal handlers
   if(q('print-bill-final')) q('print-bill-final').addEventListener('click', printBillFinal)
+  if(q('share-whatsapp-btn')) q('share-whatsapp-btn').addEventListener('click', shareViaWhatsApp)
   
   // Dashboard date filtering
   let filteredBills = []
@@ -1128,6 +1129,82 @@ function printBillFinal(){
   `)
   w.document.close()
   setTimeout(()=>{ w.focus(); w.print() }, 500)
+}
+
+// Share bill via WhatsApp
+function shareViaWhatsApp(){
+  if(!window.currentBillToPrint) return alert('No bill to share')
+  const bill = window.currentBillToPrint
+  
+  // Check if customer phone is available
+  if(!bill.customerInfo || !bill.customerInfo.phone){
+    alert('Customer phone number is required to share via WhatsApp')
+    return
+  }
+  
+  const phoneNumber = bill.customerInfo.phone.replace(/\D/g, '')
+  if(phoneNumber.length < 10){
+    alert('Invalid phone number. Please enter a valid phone number.')
+    return
+  }
+  
+  // Format bill details for WhatsApp
+  const cur = bill.items.length ? bill.items[0].currency : 'INR'
+  const sym = currencySymbol(cur)
+  const total = bill.total
+  const totalGST = bill.totalGST || 0
+  const subtotal = total - totalGST
+  
+  let billText = ''
+  
+  // Add business details if available
+  if(businessDetails.name){
+    billText += `*${businessDetails.name}*\n`
+    if(businessDetails.address) billText += `${businessDetails.address}\n`
+    if(businessDetails.phone) billText += `📱 ${businessDetails.phone}\n`
+    if(businessDetails.gst) billText += `GST: ${businessDetails.gst}\n`
+    billText += '\n'
+  }
+  
+  // Add header
+  billText += `*Invoice/Bill Receipt*\n`
+  billText += `Bill ID: ${bill.id}\n`
+  billText += `Date: ${new Date(bill.ts).toLocaleString()}\n\n`
+  
+  // Add customer info if available
+  if(bill.customerInfo.name){
+    billText += `*Customer Details*\n`
+    billText += `Name: ${bill.customerInfo.name}\n`
+    if(bill.customerInfo.email) billText += `Email: ${bill.customerInfo.email}\n`
+    billText += '\n'
+  }
+  
+  // Add items
+  billText += `*Items*\n`
+  billText += '─'.repeat(40) + '\n'
+  
+  bill.items.forEach(item => {
+    const gst = item.gst || 18
+    const basePrice = item.price / (1 + gst / 100)
+    const gstAmount = item.price - basePrice
+    billText += `${item.name} (${item.code})\n`
+    billText += `  Base: ${sym}${basePrice.toFixed(2)} | GST (${gst}%): ${sym}${gstAmount.toFixed(2)}\n`
+    billText += `  Total: ${sym}${item.price.toFixed(2)}\n\n`
+  })
+  
+  // Add summary
+  billText += '─'.repeat(40) + '\n'
+  billText += `Subtotal: ${sym}${subtotal.toFixed(2)}\n`
+  billText += `Total GST: ${sym}${totalGST.toFixed(2)}\n`
+  billText += `*TOTAL: ${sym}${total.toFixed(2)}*\n\n`
+  billText += `Thank you for your purchase!`
+  
+  // Create WhatsApp link
+  const encodedMessage = encodeURIComponent(billText)
+  const whatsappURL = `https://wa.me/${phoneNumber}?text=${encodedMessage}`
+  
+  // Open WhatsApp
+  window.open(whatsappURL, '_blank')
 }
 
 // Business details setup & validation
