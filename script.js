@@ -1142,10 +1142,20 @@ function shareViaWhatsApp(){
     return
   }
   
-  const phoneNumber = bill.customerInfo.phone.replace(/\D/g, '')
-  if(phoneNumber.length < 10){
+  let phoneNumber = bill.customerInfo.phone.replace(/\D/g, '')
+  
+  // Add country code if not present (default to +91 for India, adjust as needed)
+  if(phoneNumber.length === 10){
+    // If 10 digits, assume Indian number and add country code 91
+    phoneNumber = '91' + phoneNumber
+  } else if(phoneNumber.length < 10){
     alert('Invalid phone number. Please enter a valid phone number.')
     return
+  }
+  
+  // Ensure it starts with + for the URL
+  if(!phoneNumber.startsWith('+')){
+    phoneNumber = '+' + phoneNumber
   }
   
   // Format bill details for WhatsApp
@@ -1199,9 +1209,10 @@ function shareViaWhatsApp(){
   billText += `*TOTAL: ${sym}${total.toFixed(2)}*\n\n`
   billText += `Thank you for your purchase!`
   
-  // Create WhatsApp link
+  // Create WhatsApp link - Remove + from phoneNumber for the URL
+  const phoneForURL = phoneNumber.replace('+', '')
   const encodedMessage = encodeURIComponent(billText)
-  const whatsappURL = `https://wa.me/${phoneNumber}?text=${encodedMessage}`
+  const whatsappURL = `https://wa.me/${phoneForURL}?text=${encodedMessage}`
   
   // Open WhatsApp
   window.open(whatsappURL, '_blank')
